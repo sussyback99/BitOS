@@ -15,6 +15,7 @@ int input_y = 170;
 char input_buffer[256];
 int input_pos = 0;
 int console_line = 0;
+volatile unsigned char last_scancode = 0;
 
 inline unsigned char inb(unsigned short port) {
     unsigned char ret;
@@ -36,6 +37,7 @@ void draw_rectangle(int x, int y, int width, int height, unsigned char color) {
         }
     }
 }
+
 void draw_char(char c, int x, int y, unsigned char color) {
     if (c == 'A') {
         draw_rectangle(x, y + 2, 1, 5, color);
@@ -221,6 +223,7 @@ void draw_char(char c, int x, int y, unsigned char color) {
     else if (c == ' ') {
     }
 }
+
 void draw_string(const char* str, int x, int y, unsigned char color) {
     int pos = x;
     for (int i = 0; str[i] != '\0'; i++) {
@@ -233,8 +236,8 @@ void draw_interface() {
     draw_rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, COLOR_BLACK);
     draw_rectangle(0, 0, SCREEN_WIDTH, 12, COLOR_BLUE);
     draw_char('B', 6, 3, COLOR_WHITE);
-    draw_char('I', 12, 3, COLOR_WHITE);
-    draw_char('T', 18, 3, COLOR_WHITE);
+    draw_char('i', 12, 3, COLOR_WHITE);
+    draw_char('t', 18, 3, COLOR_WHITE);
     draw_char('O', 24, 3, COLOR_WHITE);
     draw_char('S', 30, 3, COLOR_WHITE);
     draw_rectangle(0, 12, SCREEN_WIDTH, 1, COLOR_DARK_GRAY);
@@ -242,8 +245,8 @@ void draw_interface() {
     draw_rectangle(2, 14, SCREEN_WIDTH - 4, SCREEN_HEIGHT - 16, COLOR_WHITE);
     draw_rectangle(2, 160, SCREEN_WIDTH - 4, 1, COLOR_DARK_GRAY);
     draw_rectangle(2, 161, SCREEN_WIDTH - 4, 1, COLOR_LIGHT_GRAY);
-    draw_string("BITOS CONSOLE V1.0", 10, 25, COLOR_BLUE);
-    draw_string("TYPE 'STDOUT.WRITE \"TEXT\"' TO PRINT", 10, 35, COLOR_BLACK);
+    draw_string("BitOS Console v1.0", 10, 25, COLOR_BLUE);
+    draw_string("Type 'stdout.write \"text\"' to print", 10, 35, COLOR_BLACK);
     draw_string("> ", 10, 170, COLOR_BLUE);
 }
 
@@ -259,7 +262,7 @@ void print_to_console(const char* text) {
 }
 
 void execute_command(const char* cmd) {
-    if (cmd[0] == 'S' && cmd[1] == 'T' && cmd[2] == 'D' && cmd[3] == 'O' && cmd[4] == 'U' && cmd[5] == 'T' && cmd[6] == '.' && cmd[7] == 'W' && cmd[8] == 'R' && cmd[9] == 'I' && cmd[10] == 'T' && cmd[11] == 'E' && cmd[12] == ' ') {
+    if (cmd[0] == 's' && cmd[1] == 't' && cmd[2] == 'd' && cmd[3] == 'o' && cmd[4] == 'u' && cmd[5] == 't' && cmd[6] == '.' && cmd[7] == 'w' && cmd[8] == 'r' && cmd[9] == 'i' && cmd[10] == 't' && cmd[11] == 'e' && cmd[12] == ' ') {
         int start = 13;
         if (cmd[start] == '"') {
             start++;
@@ -281,90 +284,90 @@ void clear_input_area() {
     draw_string("> ", 10, 170, COLOR_BLUE);
 }
 
+void process_key(unsigned char scancode) {
+    static int shift_pressed = 0;
+    
+    if (scancode == 0x2A || scancode == 0x36) {
+        shift_pressed = 1;
+        return;
+    }
+    if (scancode == 0xAA || scancode == 0xB6) {
+        shift_pressed = 0;
+        return;
+    }
+    
+    char key = 0;
+    if (scancode == 0x1E) key = 'A';
+    else if (scancode == 0x30) key = 'B';
+    else if (scancode == 0x2E) key = 'C';
+    else if (scancode == 0x20) key = 'D';
+    else if (scancode == 0x12) key = 'E';
+    else if (scancode == 0x21) key = 'F';
+    else if (scancode == 0x22) key = 'G';
+    else if (scancode == 0x23) key = 'H';
+    else if (scancode == 0x17) key = 'I';
+    else if (scancode == 0x24) key = 'J';
+    else if (scancode == 0x25) key = 'K';
+    else if (scancode == 0x26) key = 'L';
+    else if (scancode == 0x32) key = 'M';
+    else if (scancode == 0x31) key = 'N';
+    else if (scancode == 0x18) key = 'O';
+    else if (scancode == 0x19) key = 'P';
+    else if (scancode == 0x10) key = 'Q';
+    else if (scancode == 0x13) key = 'R';
+    else if (scancode == 0x1F) key = 'S';
+    else if (scancode == 0x14) key = 'T';
+    else if (scancode == 0x16) key = 'U';
+    else if (scancode == 0x2F) key = 'V';
+    else if (scancode == 0x11) key = 'W';
+    else if (scancode == 0x2D) key = 'X';
+    else if (scancode == 0x15) key = 'Y';
+    else if (scancode == 0x2C) key = 'Z';
+    else if (scancode == 0x39) key = ' ';
+    
+    if (key && input_pos < 255) {
+        input_buffer[input_pos++] = key;
+        input_buffer[input_pos] = '\0';
+        draw_char(key, cursor_x, 170, COLOR_BLACK);
+        cursor_x += 6;
+        if (cursor_x > 300) {
+            cursor_x = 10;
+        }
+    }
+    
+    if (scancode == 0x1C) {
+        input_buffer[input_pos] = '\0';
+        print_to_console(input_buffer);
+        execute_command(input_buffer);
+        input_pos = 0;
+        cursor_x = 10 + 6;
+        clear_input_area();
+    }
+    
+    if (scancode == 0x0E) {
+        if (input_pos > 0) {
+            input_pos--;
+            cursor_x -= 6;
+            draw_rectangle(cursor_x, 170, 6, 10, COLOR_WHITE);
+            input_buffer[input_pos] = '\0';
+        }
+    }
+}
+
+extern "C" void keyboard_handler() {
+    unsigned char scancode = inb(0x60);
+    last_scancode = scancode;
+}
+
 extern "C" void kernel_main() {
     draw_interface();
     
-    unsigned char last_scancode = 0;
-    int shift_pressed = 0;
-    
     while (1) {
-        if ((inb(0x64) & 1) == 0) {
-            continue;
-        }
+        asm volatile ("hlt");
         
-        unsigned char scancode = inb(0x60);
-        
-        if (scancode != last_scancode) {
-            last_scancode = scancode;
-            
-            if (scancode == 0x2A || scancode == 0x36) {
-                shift_pressed = 1;
-                continue;
-            }
-            if (scancode == 0xAA || scancode == 0xB6) {
-                shift_pressed = 0;
-                continue;
-            }
-            
-            char key = 0;
-            if (scancode == 0x1E) key = 'A';
-            else if (scancode == 0x30) key = 'B';
-            else if (scancode == 0x2E) key = 'C';
-            else if (scancode == 0x20) key = 'D';
-            else if (scancode == 0x12) key = 'E';
-            else if (scancode == 0x21) key = 'F';
-            else if (scancode == 0x22) key = 'G';
-            else if (scancode == 0x23) key = 'H';
-            else if (scancode == 0x17) key = 'I';
-            else if (scancode == 0x24) key = 'J';
-            else if (scancode == 0x25) key = 'K';
-            else if (scancode == 0x26) key = 'L';
-            else if (scancode == 0x32) key = 'M';
-            else if (scancode == 0x31) key = 'N';
-            else if (scancode == 0x18) key = 'O';
-            else if (scancode == 0x19) key = 'P';
-            else if (scancode == 0x10) key = 'Q';
-            else if (scancode == 0x13) key = 'R';
-            else if (scancode == 0x1F) key = 'S';
-            else if (scancode == 0x14) key = 'T';
-            else if (scancode == 0x16) key = 'U';
-            else if (scancode == 0x2F) key = 'V';
-            else if (scancode == 0x11) key = 'W';
-            else if (scancode == 0x2D) key = 'X';
-            else if (scancode == 0x15) key = 'Y';
-            else if (scancode == 0x2C) key = 'Z';
-            else if (scancode == 0x39) key = ' ';
-            
-            if (shift_pressed && key >= 'A' && key <= 'Z') {
-            }
-            
-            if (key && input_pos < 255) {
-                input_buffer[input_pos++] = key;
-                input_buffer[input_pos] = '\0';
-                draw_char(key, cursor_x, 170, COLOR_BLACK);
-                cursor_x += 6;
-                if (cursor_x > 300) {
-                    cursor_x = 10;
-                }
-            }
-            
-            if (scancode == 0x1C) {
-                input_buffer[input_pos] = '\0';
-                print_to_console(input_buffer);
-                execute_command(input_buffer);
-                input_pos = 0;
-                cursor_x = 10 + 6;
-                clear_input_area();
-            }
-            
-            if (scancode == 0x0E) {
-                if (input_pos > 0) {
-                    input_pos--;
-                    cursor_x -= 6;
-                    draw_rectangle(cursor_x, 170, 6, 10, COLOR_WHITE);
-                    input_buffer[input_pos] = '\0';
-                }
-            }
+        if (last_scancode) {
+            process_key(last_scancode);
+            last_scancode = 0;
         }
     }
 }
